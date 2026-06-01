@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>План питания на 21 день</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, 'Segoe UI', 'Roboto', sans-serif;
+            background: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            color: #1e293b;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0 0 8px;
+            font-size: 2rem;
+            color: #0f3b5c;
+        }
+        .user-info {
+            font-size: 1.1rem;
+            background: #e2e8f0;
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 40px;
+        }
+        .days-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        @media (max-width: 1024px) {
+            .days-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 640px) {
+            .days-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .day-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .day-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+        }
+        .day-header {
+            background: linear-gradient(135deg, #2c7da0, #1f5e7e);
+            color: white;
+            padding: 16px 20px;
+        }
+        .day-title {
+            font-size: 1.4rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 10px;
+        }
+        .day-totals {
+            font-size: 0.8rem;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-weight: normal;
+        }
+        .day-nutrients {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.1);
+            padding: 8px 12px;
+            border-radius: 40px;
+            justify-content: center;
+        }
+        .meals-list {
+            padding: 16px;
+        }
+        .meal-group {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e9eef3;
+        }
+        .meal-group:last-child {
+            border-bottom: none;
+        }
+        .meal-type {
+            font-weight: 700;
+            color: #2c7da0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #2c7da0;
+            display: inline-block;
+        }
+        .meal-item {
+            padding: 8px 0;
+        }
+        .dish-name {
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .replacement-badge {
+            background: #fef9c3;
+            color: #854d0e;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: normal;
+        }
+        .dish-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 0.85rem;
+            color: #475569;
+        }
+        .nutrient {
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        .print-button {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #2c7da0;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .print-button:hover {
+            background: #1f5e7e;
+        }
+        .loader, .error {
+            text-align: center;
+            padding: 60px;
+            font-size: 1.2rem;
+        }
+        .error {
+            color: #b91c1c;
+        }
+        @media print {
+            .print-button { display: none; }
+            .day-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+            body { background: white; padding: 10px; }
+            .days-grid {
+                display: block;
+            }
+            .day-card {
+                margin-bottom: 20px;
+            }
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #2c7da0;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🍽️ План питания на 21 день</h1>
+        <div class="user-info" id="userInfo">Загрузка...</div>
+    </div>
+    <div id="menuGrid" class="days-grid">
+        <div class="loader">Загрузка меню...</div>
+    </div>
+    <div style="text-align: center;">
+        <a href="/" class="back-link">← Вернуться на главную</a>
+    </div>
+</div>
+<button class="print-button" onclick="window.print()">🖨️ Распечатать / PDF</button>
+
+<script>
+    // Получаем userId из URL (передан через шаблон)
+    const userId = {{ user_id }};
+    let userData = null;
+
+    async function loadFullMenu() {
+        try {
+            const [userResp, menuResp] = await Promise.all([
+                fetch(`/api/users`),
+                fetch(`/api/user_full_menu/${userId}`)
+            ]);
+            if (!userResp.ok || !menuResp.ok) {
+                throw new Error('Ошибка загрузки данных');
+            }
+            const users = await userResp.json();
+            userData = users.find(u => u.id === userId);
+            if (!userData) throw new Error('Пользователь не найден');
+            document.getElementById('userInfo').innerHTML = `${escapeHtml(userData.name)} • ${userData.programm_type} ккал/день • Старт: ${userData.day_num}`;
+
+            const menuData = await menuResp.json();
+            renderMenu(menuData);
+        } catch (err) {
+            document.getElementById('menuGrid').innerHTML = `<div class="error">❌ ${err.message}</div>`;
+        }
+    }
+
+    function renderMenu(daysArray) {
+        const container = document.getElementById('menuGrid');
+        container.innerHTML = '';
+        for (const day of daysArray) {
+            // Группируем блюда по типу приёма
+            const grouped = {};
+            for (const meal of day.meals) {
+                const type = meal.meal_type;
+                if (!grouped[type]) grouped[type] = [];
+                grouped[type].push(meal);
+            }
+            // Создаём карточку дня
+            const card = document.createElement('div');
+            card.className = 'day-card';
+            // Заголовок дня с итогами сверху
+            const header = document.createElement('div');
+            header.className = 'day-header';
+            header.innerHTML = `
+                <div class="day-title">
+                    <span>День ${day.day}</span>
+                    <span class="day-totals">🔥 ${Math.round(day.totals.kkal)} ккал</span>
+                </div>
+                <div class="day-nutrients">
+                    <span>🥩 Белки: ${day.totals.protein} г</span>
+                    <span>🧈 Жиры: ${day.totals.fat} г</span>
+                    <span>🍚 Углеводы: ${day.totals.carbs} г</span>
+                </div>
+            `;
+            card.appendChild(header);
+            // Список приёмов с группировкой
+            const mealsDiv = document.createElement('div');
+            mealsDiv.className = 'meals-list';
+            const typeOrder = ['Завтрак', 'Ланч', 'Обед', 'Полдник', 'Ужин'];
+            for (const type of typeOrder) {
+                if (!grouped[type]) continue;
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'meal-group';
+                const typeHeader = document.createElement('div');
+                typeHeader.className = 'meal-type';
+                typeHeader.innerText = type;
+                groupDiv.appendChild(typeHeader);
+                for (const meal of grouped[type]) {
+                    const mealDiv = document.createElement('div');
+                    mealDiv.className = 'meal-item';
+                    let replacementHtml = '';
+                    if (meal.is_replacement) {
+                        replacementHtml = `<span class="replacement-badge" title="Замена вместо ${escapeHtml(meal.original_name)}">🔄 замена</span>`;
+                    }
+                    mealDiv.innerHTML = `
+                        <div class="dish-name">
+                            <span>${escapeHtml(meal.name)}</span>
+                            ${replacementHtml}
+                        </div>
+                        <div class="dish-details">
+                            <span>⚖️ ${meal.weight}</span>
+                            <span>🔥 ${meal.kkal} ккал</span>
+                            <span class="nutrient">🥩 ${meal.protein} г</span>
+                            <span class="nutrient">🧈 ${meal.fat} г</span>
+                            <span class="nutrient">🍚 ${meal.carbs} г</span>
+                        </div>
+                    `;
+                    groupDiv.appendChild(mealDiv);
+                }
+                mealsDiv.appendChild(groupDiv);
+            }
+            card.appendChild(mealsDiv);
+            container.appendChild(card);
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    }
+
+    loadFullMenu();
+</script>
+</body>
+</html>

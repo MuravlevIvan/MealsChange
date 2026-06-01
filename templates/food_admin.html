@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Справочник продуктов и блюд</title>
+    <style>
+        body { font-family: system-ui; background: #f5f7fa; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { color: #1e2a3a; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { padding: 8px 20px; background: #e2e8f0; border: none; border-radius: 30px; cursor: pointer; }
+        .tab-btn.active { background: #2c7da0; color: white; }
+        .panel { display: none; background: white; border-radius: 20px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .panel.active { display: block; }
+        .search-wrapper { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
+        .search-wrapper input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        th { background: #e9f0f5; }
+        button { padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer; }
+        .edit-btn { background: #f59e0b; color: white; }
+        .del-btn { background: #dc2626; color: white; }
+        .add-btn { background: #10b981; color: white; margin-bottom: 15px; margin-right: 10px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: inline-block; width: 140px; }
+        input, select, textarea { padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 250px; }
+        .modal { display: none; position: fixed; background: rgba(0,0,0,0.5); top:0; left:0; width:100%; height:100%; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 20px; border-radius: 20px; width: 550px; max-height: 80vh; overflow-y: auto; }
+        .filter-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
+        .tree { margin: 10px 0; max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 8px; }
+        .category { font-weight: bold; margin-top: 8px; cursor: pointer; }
+        .ingredient { margin-left: 20px; padding: 4px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .ingredient:hover { background: #e9f0f5; }
+        .selected-item { display: flex; gap: 12px; align-items: center; background: #f1f5f9; padding: 8px; margin-bottom: 6px; border-radius: 8px; flex-wrap: wrap; }
+        .selected-item input { width: 90px; }
+        .error-message { color: #dc2626; padding: 10px; background: #fee2e2; border-radius: 8px; margin: 10px 0; }
+        .import-area { margin: 15px 0; padding: 10px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📚 Администрирование справочников</h1>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="categories">Категории</button>
+        <button class="tab-btn" data-tab="products">Продукты</button>
+        <button class="tab-btn" data-tab="dishes">Блюда</button>
+    </div>
+
+    <!-- Категории -->
+    <div id="categoriesPanel" class="panel active">
+        <button id="addCategoryBtn" class="add-btn">➕ Добавить категорию</button>
+        <div class="search-wrapper">
+            <input type="text" id="catSearchInput" placeholder="🔍 Поиск категорий...">
+            <button id="clearCatSearchBtn">Очистить</button>
+        </div>
+        <table id="categoriesTable"><thead><tr><th>ID</th><th>Название</th><th>Действия</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <!-- Продукты -->
+    <div id="productsPanel" class="panel">
+        <div><label>Фильтр по категории:</label> <select id="filterCategory"></select></div>
+        <button id="addProductBtn" class="add-btn">➕ Добавить продукт</button>
+        <div class="search-wrapper">
+            <input type="text" id="prodSearchInput" placeholder="🔍 Поиск продуктов...">
+            <button id="clearProdSearchBtn">Очистить</button>
+        </div>
+        <div id="productsError" class="error-message" style="display:none;"></div>
+        <table id="productsTable"><thead><tr><th>ID</th><th>Название</th><th>ккал/100г</th><th>Белки</th><th>Жиры</th><th>Углеводы</th><th>Категория</th><th>Примечание</th><th>Действия</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <!-- Блюда -->
+    <div id="dishesPanel" class="panel">
+        <div class="filter-row">
+            <label>Программа:</label>
+            <select id="dishProgramFilter">
+                <option value="">Все программы</option>
+            </select>
+            <label>Тип приёма:</label>
+            <select id="dishMealTypeFilter">
+                <option value="">Все</option>
+            </select>
+            <button id="addProgramDishBtn" class="add-btn">➕ Добавить блюдо</button>
+        </div>
+        
+        <!-- Область импорта CSV -->
+        <div class="import-area">
+            <label style="font-weight: bold;">📂 Импорт меню из CSV:</label>
+            <select id="importProgramSelect" style="margin-left: 10px;"></select>
+            <input type="file" id="importFile" accept=".csv" style="margin-left: 10px;">
+            <button id="importBtn" style="background: #10b981;">⬆️ Импорт (заменит всё меню)</button>
+            <div style="font-size: 0.8rem; margin-top: 5px; color: #4b5563;">
+                Формат CSV (разделитель ;): day;meal_type;dish_name;weight;kkal;protein;fat;carbs<br>
+                Пример: 1;Завтрак;Овсяная каша;150г;180;5;3;30
+            </div>
+        </div>
+
+        <div class="search-wrapper">
+            <input type="text" id="dishSearchInput" placeholder="🔍 Поиск блюд...">
+            <button id="clearDishSearchBtn">Очистить</button>
+        </div>
+        <div id="dishesError" class="error-message" style="display:none;"></div>
+        <table id="dishesTable">
+            <thead>
+                <tr><th>ID</th><th>Программа</th><th>День</th><th>Тип приёма</th><th>Блюдо</th><th>Вес</th><th>Ккал</th><th>Белки</th><th>Жиры</th><th>Углеводы</th><th>Действия</th>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модалки -->
+<div id="categoryModal" class="modal"><div class="modal-content"><h3>Категория</h3><input type="text" id="catName" placeholder="Название"><div style="margin-top:15px"><button id="saveCategoryBtn">Сохранить</button><button class="cancel-modal">Отмена</button></div></div></div>
+<div id="productModal" class="modal"><div class="modal-content"><h3>Продукт</h3><div class="form-group"><label>Название:</label><input type="text" id="prodName"></div><div class="form-group"><label>ккал/100г:</label><input type="number" id="prodCalories" step="1"></div><div class="form-group"><label>Белки:</label><input type="number" id="prodProtein" step="0.1"></div><div class="form-group"><label>Жиры:</label><input type="number" id="prodFat" step="0.1"></div><div class="form-group"><label>Углеводы:</label><input type="number" id="prodCarbs" step="0.1"></div><div class="form-group"><label>Категория:</label><select id="prodCategory"></select></div><div class="form-group"><label>Примечание:</label><textarea id="prodNote" rows="2"></textarea></div><div><button id="saveProductBtn">Сохранить</button><button class="cancel-modal">Отмена</button></div></div></div>
+<div id="programDishModal" class="modal"><div class="modal-content"><h3 id="dishModalTitle">Добавить блюдо</h3><input type="hidden" id="editDishId"><div class="form-group"><label>Программа:</label><select id="dishProgram"></select></div><div class="form-group"><label>День (0 – запасное):</label><input type="number" id="dishDay" min="0" max="21" value="0"></div><div class="form-group"><label>Тип приёма:</label><select id="dishMealType"></select></div><div class="form-group"><label>Название блюда:</label><input type="text" id="dishName"></div><div class="form-group"><label>Вес порции:</label><input type="text" id="dishWeight" placeholder="150г"></div><div class="form-group"><label>Калории (ккал):</label><input type="number" id="dishKkal" step="1"></div><div class="form-group"><label>Белки (г):</label><input type="number" id="dishProtein" step="0.1"></div><div class="form-group"><label>Жиры (г):</label><input type="number" id="dishFat" step="0.1"></div><div class="form-group"><label>Углеводы (г):</label><input type="number" id="dishCarbs" step="0.1"></div><div class="modal-buttons"><button class="cancel-modal">Отмена</button><button id="saveProgramDishBtn">Сохранить</button></div></div></div>
+<div id="compositionModal" class="modal"><div class="modal-content"><h3>Состав блюда: <span id="compDishName"></span></h3><div><strong>Ингредиенты:</strong></div><div class="search-wrapper"><input type="text" id="ingredientSearch" placeholder="Поиск..."><button id="clearIngSearch">Очистить</button></div><div id="ingredientsTree" class="tree"></div><div><strong>Выбранные ингредиенты:</strong></div><div id="selectedIngredientsList"></div><div id="nutritionPreview" style="background:#e9f0f5; padding:10px; margin:10px 0;"></div><div class="modal-buttons"><button id="deleteCompositionBtn" style="background:#dc2626; color:white;">Удалить состав</button><button class="cancel-modal">Закрыть</button><button id="saveCompositionBtn">Сохранить состав</button></div></div></div>
+
+<script>
+    // Общие функции
+    function escapeHtml(s) { if (!s) return ''; return s.replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])); }
+    function parseNumber(val) { let num = parseFloat(String(val).replace(',','.')); return isNaN(num) ? 0 : num; }
+
+    // ---------- Категории ----------
+    let allCategories = [];
+    async function loadCategories() {
+        const resp = await fetch('/api/categories');
+        allCategories = await resp.json();
+        allCategories.sort((a,b)=>a.id-b.id);
+        filterCategories();
+        const filterSelect = document.getElementById('filterCategory');
+        filterSelect.innerHTML = '<option value="">Все категории</option>';
+        allCategories.forEach(c => filterSelect.appendChild(new Option(c.name, c.id)));
+        filterSelect.onchange = () => filterProducts();
+    }
+    function filterCategories() {
+        const search = document.getElementById('catSearchInput').value.toLowerCase();
+        const filtered = allCategories.filter(c => c.name.toLowerCase().includes(search));
+        renderCategories(filtered);
+    }
+    function renderCategories(cats) {
+        const tbody = document.querySelector('#categoriesTable tbody');
+        tbody.innerHTML = '';
+        cats.forEach(c => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${c.id}</td><td>${escapeHtml(c.name)}</td><td><button class="edit-cat" data-id="${c.id}" data-name="${c.name}">✏️</button><button class="del-cat" data-id="${c.id}">🗑️</button></td>`;
+            tbody.appendChild(tr);
+        });
+        attachCategoryButtons();
+    }
+    function attachCategoryButtons() {
+        document.querySelectorAll('.edit-cat').forEach(btn => btn.onclick = () => { editingCatId = btn.dataset.id; document.getElementById('catName').value = btn.dataset.name; document.getElementById('categoryModal').style.display='flex'; });
+        document.querySelectorAll('.del-cat').forEach(btn => btn.onclick = async () => { if(confirm('Удалить категорию?')) { await fetch(`/api/categories/${btn.dataset.id}`, {method:'DELETE'}); loadCategories(); loadProducts(); } });
+    }
+    let editingCatId = null;
+    async function saveCategory() {
+        const name = document.getElementById('catName').value.trim();
+        if(!name) return;
+        if(editingCatId) await fetch(`/api/categories/${editingCatId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+        else await fetch('/api/categories', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+        loadCategories(); document.getElementById('categoryModal').style.display='none';
+    }
+
+    // ---------- Продукты ----------
+    let allProducts = [];
+    async function loadProducts() {
+        try {
+            const resp = await fetch('/api/food_items');
+            allProducts = await resp.json();
+            allProducts.sort((a,b)=>a.id-b.id);
+            filterProducts();
+            document.getElementById('productsError').style.display='none';
+        } catch(err) { document.getElementById('productsError').textContent='Ошибка: '+err.message; document.getElementById('productsError').style.display='block'; }
+    }
+    function filterProducts() {
+        const search = document.getElementById('prodSearchInput').value.toLowerCase();
+        const catId = document.getElementById('filterCategory').value;
+        let filtered = allProducts.filter(p => (!search || p.name.toLowerCase().includes(search)) && (!catId || p.category_id == catId));
+        renderProducts(filtered);
+    }
+    function renderProducts(prods) {
+        const tbody = document.querySelector('#productsTable tbody');
+        tbody.innerHTML = '';
+        for(const p of prods) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${p.id}</td><td>${escapeHtml(p.name)}</td><td>${p.calories_per_100}</td><td>${p.protein}</td><td>${p.fat}</td><td>${p.carbs}</td><td>${p.category_name||''}</td><td>${escapeHtml(p.note||'')}</td><td><button class="edit-prod" data-id="${p.id}">✏️</button><button class="del-prod" data-id="${p.id}">🗑️</button></td>`;
+            tbody.appendChild(tr);
+        }
+        attachProductButtons();
+    }
+    let editingProdId = null;
+    async function openProductModal(id) {
+        editingProdId = id;
+        const prod = allProducts.find(p => p.id == id);
+        document.getElementById('prodName').value = prod.name;
+        document.getElementById('prodCalories').value = prod.calories_per_100;
+        document.getElementById('prodProtein').value = prod.protein;
+        document.getElementById('prodFat').value = prod.fat;
+        document.getElementById('prodCarbs').value = prod.carbs;
+        document.getElementById('prodNote').value = prod.note || '';
+        const catSelect = document.getElementById('prodCategory');
+        catSelect.innerHTML = '<option value="">Без категории</option>';
+        allCategories.forEach(c => catSelect.appendChild(new Option(c.name, c.id)));
+        if(prod.category_id) catSelect.value = prod.category_id;
+        document.getElementById('productModal').style.display = 'flex';
+    }
+    async function saveProduct() {
+        const payload = {
+            name: document.getElementById('prodName').value,
+            calories_per_100: parseFloat(document.getElementById('prodCalories').value),
+            protein: parseFloat(document.getElementById('prodProtein').value),
+            fat: parseFloat(document.getElementById('prodFat').value),
+            carbs: parseFloat(document.getElementById('prodCarbs').value),
+            note: document.getElementById('prodNote').value,
+            category_id: document.getElementById('prodCategory').value || null
+        };
+        if(editingProdId) await fetch(`/api/food_items/${editingProdId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        else await fetch('/api/food_items', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        loadProducts(); document.getElementById('productModal').style.display='none';
+    }
+    function attachProductButtons() {
+        document.querySelectorAll('.edit-prod').forEach(btn => btn.onclick = () => openProductModal(btn.dataset.id));
+        document.querySelectorAll('.del-prod').forEach(btn => btn.onclick = async () => { if(confirm('Удалить продукт?')) { await fetch(`/api/food_items/${btn.dataset.id}`, {method:'DELETE'}); loadProducts(); } });
+    }
+
+    // ---------- Блюда ----------
+    let allDishes = [];
+    let programsList = [];
+    let mealTypes = [];
+
+    async function loadPrograms() {
+        const resp = await fetch('/api/program_types');
+        programsList = await resp.json();
+        const filterSelect = document.getElementById('dishProgramFilter');
+        const programSelect = document.getElementById('dishProgram');
+        const importSelect = document.getElementById('importProgramSelect');
+        filterSelect.innerHTML = '<option value="">Все программы</option>';
+        programSelect.innerHTML = '';
+        importSelect.innerHTML = '';
+        programsList.forEach(p => {
+            filterSelect.appendChild(new Option(p.name, p.id));
+            programSelect.appendChild(new Option(p.name, p.id));
+            importSelect.appendChild(new Option(p.name, p.id));
+        });
+    }
+
+    async function loadMealTypes() {
+        const resp = await fetch('/api/meal_types');
+        mealTypes = await resp.json();
+        const select = document.getElementById('dishMealType');
+        const filterSelect = document.getElementById('dishMealTypeFilter');
+        select.innerHTML = '';
+        filterSelect.innerHTML = '<option value="">Все</option>';
+        mealTypes.forEach(mt => {
+            select.appendChild(new Option(mt.name, mt.id));
+            filterSelect.appendChild(new Option(mt.name, mt.id));
+        });
+    }
+
+    async function loadAllDishes() {
+        const programId = document.getElementById('dishProgramFilter').value;
+        let url = '/api/all_dishes_unified';
+        if(programId) url += `?program_id=${programId}`;
+        try {
+            const resp = await fetch(url);
+            if(!resp.ok) throw new Error('Ошибка загрузки');
+            allDishes = await resp.json();
+            filterDishes();
+            document.getElementById('dishesError').style.display = 'none';
+        } catch(err) {
+            document.getElementById('dishesError').textContent = 'Ошибка: ' + err.message;
+            document.getElementById('dishesError').style.display = 'block';
+            allDishes = [];
+        }
+    }
+
+    function filterDishes() {
+        const search = document.getElementById('dishSearchInput').value.toLowerCase();
+        const mealTypeFilter = document.getElementById('dishMealTypeFilter').value;
+        let filtered = allDishes.filter(d => {
+            const matchSearch = d.name.toLowerCase().includes(search);
+            const matchMealType = !mealTypeFilter || d.meal_type_id == mealTypeFilter;
+            return matchSearch && matchMealType;
+        });
+        renderDishes(filtered);
+    }
+
+    function renderDishes(dishes) {
+        const tbody = document.querySelector('#dishesTable tbody');
+        tbody.innerHTML = '';
+        for(const d of dishes) {
+            const dayDisplay = d.day === 0 ? 'Запасное' : d.day;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${d.id}</td>
+                <td>${escapeHtml(d.program_name)}</td>
+                <td>${dayDisplay}</td>
+                <td>${escapeHtml(d.meal_type_name)}</td>
+                <td>${escapeHtml(d.name)}</td>
+                <td>${escapeHtml(d.weight)}</td>
+                <td>${Math.round(d.kkal)}</td>
+                <td>${d.protein.toFixed(1)}</td>
+                <td>${d.fat.toFixed(1)}</td>
+                <td>${d.carbs.toFixed(1)}</td>
+                <td>
+                    <button class="edit-dish" data-id="${d.id}" data-program-id="${d.program_id}" data-day="${d.day}" data-meal-type="${d.meal_type_id}" data-name="${escapeHtml(d.name)}" data-weight="${escapeHtml(d.weight)}" data-kkal="${d.kkal}" data-protein="${d.protein}" data-fat="${d.fat}" data-carbs="${d.carbs}">✏️</button>
+                    <button class="delete-dish" data-id="${d.id}">🗑️</button>
+                    <button class="compose-dish" data-name="${escapeHtml(d.name)}">📝</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+        attachDishButtons();
+    }
+
+    function attachDishButtons() {
+        document.querySelectorAll('.edit-dish').forEach(btn => btn.onclick = () => openDishModal(btn.dataset.id, btn.dataset));
+        document.querySelectorAll('.delete-dish').forEach(btn => btn.onclick = async () => {
+            if(confirm('Удалить блюдо? Оно исчезнет из программы.')) {
+                const resp = await fetch(`/api/program_menu/${btn.dataset.id}`, { method: 'DELETE' });
+                if(resp.ok) loadAllDishes();
+                else alert('Ошибка удаления');
+            }
+        });
+        document.querySelectorAll('.compose-dish').forEach(btn => btn.onclick = () => openCompositionModal(btn.dataset.name));
+    }
+
+    function openDishModal(id, data) {
+        document.getElementById('dishModalTitle').innerText = id ? 'Редактировать блюдо' : 'Добавить блюдо';
+        document.getElementById('editDishId').value = id || '';
+        document.getElementById('dishProgram').value = data.programId || programsList[0]?.id;
+        document.getElementById('dishDay').value = data.day !== undefined ? data.day : 0;
+        document.getElementById('dishMealType').value = data.mealType || mealTypes[0]?.id;
+        document.getElementById('dishName').value = data.name || '';
+        document.getElementById('dishWeight').value = data.weight || '';
+        document.getElementById('dishKkal').value = data.kkal || '';
+        document.getElementById('dishProtein').value = data.protein || '';
+        document.getElementById('dishFat').value = data.fat || '';
+        document.getElementById('dishCarbs').value = data.carbs || '';
+        document.getElementById('programDishModal').style.display = 'flex';
+    }
+
+    async function saveProgramDish() {
+        const id = document.getElementById('editDishId').value;
+        const payload = {
+            program_id: parseInt(document.getElementById('dishProgram').value),
+            day: parseInt(document.getElementById('dishDay').value),
+            meal_type_id: parseInt(document.getElementById('dishMealType').value),
+            name: document.getElementById('dishName').value.trim(),
+            weight: document.getElementById('dishWeight').value.trim(),
+            kkal: parseFloat(document.getElementById('dishKkal').value),
+            protein: parseFloat(document.getElementById('dishProtein').value),
+            fat: parseFloat(document.getElementById('dishFat').value),
+            carbs: parseFloat(document.getElementById('dishCarbs').value)
+        };
+        if(!payload.name || !payload.weight || isNaN(payload.kkal)) {
+            alert('Заполните все поля');
+            return;
+        }
+        if(payload.day < 0 || payload.day > 21) {
+            alert('День должен быть от 0 до 21');
+            return;
+        }
+        let url = '/api/program_menu';
+        let method = 'POST';
+        if(id) { url = `/api/program_menu/${id}`; method = 'PUT'; }
+        try {
+            const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            if(resp.ok) {
+                loadAllDishes();
+                document.getElementById('programDishModal').style.display = 'none';
+            } else {
+                const err = await resp.json();
+                alert('Ошибка: ' + err.error);
+            }
+        } catch(e) { alert('Ошибка сети'); }
+    }
+
+    // ---------- Управление составом ----------
+    let currentDishForComposition = null;
+    let selectedIngredients = [];
+    let ingredientsTreeData = [];
+
+    async function loadIngredientsTree() {
+        if(ingredientsTreeData.length) return;
+        const resp = await fetch('/api/ingredients_tree');
+        ingredientsTreeData = await resp.json();
+    }
+
+    function renderIngredientsTree() {
+        const container = document.getElementById('ingredientsTree');
+        const search = document.getElementById('ingredientSearch').value.toLowerCase();
+        let filtered = ingredientsTreeData;
+        if(search) {
+            filtered = ingredientsTreeData.map(cat => ({...cat, children: cat.children.filter(ing => ing.name.toLowerCase().includes(search))})).filter(cat => cat.children.length);
+        }
+        container.innerHTML = '';
+        filtered.forEach(cat => {
+            const catDiv = document.createElement('div');
+            catDiv.className = 'category';
+            catDiv.innerHTML = `📁 ${escapeHtml(cat.name)} (${cat.children.length})`;
+            const childrenDiv = document.createElement('div');
+            childrenDiv.style.marginLeft = '20px';
+            childrenDiv.style.display = search ? 'block' : 'none';
+            cat.children.forEach(ing => {
+                const ingDiv = document.createElement('div');
+                ingDiv.className = 'ingredient';
+                ingDiv.innerHTML = `<span><strong>${escapeHtml(ing.name)}</strong> (${ing.calories_per_100} ккал, Б:${ing.protein} Ж:${ing.fat} У:${ing.carbs} на 100г)</span><button class="add-ingredient" data-id="${ing.id}" data-name="${escapeHtml(ing.name)}" data-cal="${ing.calories_per_100}" data-prot="${ing.protein}" data-fat="${ing.fat}" data-carbs="${ing.carbs}">➕</button>`;
+                childrenDiv.appendChild(ingDiv);
+            });
+            catDiv.onclick = () => { if(!search) childrenDiv.style.display = childrenDiv.style.display==='none' ? 'block' : 'none'; };
+            container.appendChild(catDiv);
+            container.appendChild(childrenDiv);
+        });
+        document.querySelectorAll('.add-ingredient').forEach(btn => btn.onclick = (e) => { e.stopPropagation(); addIngredient(btn.dataset.id, btn.dataset.name, parseNumber(btn.dataset.cal), parseNumber(btn.dataset.prot), parseNumber(btn.dataset.fat), parseNumber(btn.dataset.carbs)); });
+    }
+
+    function addIngredient(id, name, cal, prot, fat, carbs) {
+        let existing = selectedIngredients.find(i => i.id == id);
+        if(existing) existing.weight += 100;
+        else selectedIngredients.push({id, name, weight:100, calories_per_100:cal, protein_per_100:prot, fat_per_100:fat, carbs_per_100:carbs});
+        renderSelectedIngredients();
+        updateNutritionPreview();
+    }
+
+    function renderSelectedIngredients() {
+        const container = document.getElementById('selectedIngredientsList');
+        if(!selectedIngredients.length) { container.innerHTML = '<div>Нет ингредиентов</div>'; return; }
+        let html = '';
+        selectedIngredients.forEach((ing, idx) => {
+            const weight = ing.weight;
+            const calories = ing.calories_per_100 * weight / 100;
+            const protein = ing.protein_per_100 * weight / 100;
+            const fat = ing.fat_per_100 * weight / 100;
+            const carbs = ing.carbs_per_100 * weight / 100;
+            html += `<div class="selected-item" data-idx="${idx}"><span><strong>${escapeHtml(ing.name)}</strong></span><label>Вес: <input type="number" class="ing-weight" value="${weight}" style="width:80px"></label><span>${calories.toFixed(1)} ккал</span><span>Б: ${protein.toFixed(1)}</span><span>Ж: ${fat.toFixed(1)}</span><span>У: ${carbs.toFixed(1)}</span><button class="remove-ingredient" data-idx="${idx}">✖</button></div>`;
+        });
+        container.innerHTML = html;
+        document.querySelectorAll('.ing-weight').forEach((input, i) => {
+            input.onchange = () => { let w = parseNumber(input.value); if(w>0) { selectedIngredients[i].weight = w; renderSelectedIngredients(); updateNutritionPreview(); } else input.value = selectedIngredients[i].weight; };
+        });
+        document.querySelectorAll('.remove-ingredient').forEach(btn => { btn.onclick = () => { selectedIngredients.splice(btn.dataset.idx,1); renderSelectedIngredients(); updateNutritionPreview(); }; });
+    }
+
+    function updateNutritionPreview() {
+        let totalCal=0, totalProt=0, totalFat=0, totalCarbs=0;
+        for(const ing of selectedIngredients) {
+            const w = ing.weight;
+            totalCal += ing.calories_per_100 * w / 100;
+            totalProt += ing.protein_per_100 * w / 100;
+            totalFat += ing.fat_per_100 * w / 100;
+            totalCarbs += ing.carbs_per_100 * w / 100;
+        }
+        document.getElementById('nutritionPreview').innerHTML = `<strong>Итого:</strong> Вес: ${selectedIngredients.reduce((s,i)=>s+i.weight,0).toFixed(1)}г, Калории: ${Math.round(totalCal)} ккал, Белки: ${totalProt.toFixed(1)}г, Жиры: ${totalFat.toFixed(1)}г, Углеводы: ${totalCarbs.toFixed(1)}г`;
+    }
+
+    async function openCompositionModal(dishName) {
+        currentDishForComposition = dishName;
+        document.getElementById('compDishName').innerText = dishName;
+        await loadIngredientsTree();
+        const resp = await fetch(`/api/dish_composition/${encodeURIComponent(dishName)}`);
+        const comp = await resp.json();
+        selectedIngredients = comp.ingredients.map(ing => ({
+            id: ing.id, name: ing.name, weight: ing.weight,
+            calories_per_100: ing.calories * 100 / ing.weight,
+            protein_per_100: ing.protein * 100 / ing.weight,
+            fat_per_100: ing.fat * 100 / ing.weight,
+            carbs_per_100: ing.carbs * 100 / ing.weight
+        }));
+        renderIngredientsTree();
+        renderSelectedIngredients();
+        updateNutritionPreview();
+        document.getElementById('compositionModal').style.display = 'flex';
+    }
+
+    async function saveComposition() {
+        const ingredientsToSave = selectedIngredients.map(ing => ({ ingredient_id: ing.id, weight_grams: ing.weight }));
+        const resp = await fetch(`/api/dish_composition/${encodeURIComponent(currentDishForComposition)}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ingredients: ingredientsToSave}) });
+        if(resp.ok) { alert('Состав сохранён'); document.getElementById('compositionModal').style.display='none'; loadAllDishes(); }
+        else alert('Ошибка сохранения');
+    }
+
+    async function deleteComposition() {
+        if(!confirm('Удалить состав блюда?')) return;
+        const resp = await fetch(`/api/dish_composition/${encodeURIComponent(currentDishForComposition)}`, { method:'DELETE' });
+        if(resp.ok) { alert('Состав удалён'); document.getElementById('compositionModal').style.display='none'; loadAllDishes(); }
+        else alert('Ошибка удаления');
+    }
+
+    // ---------- Импорт CSV ----------
+    async function importDishes() {
+        const programId = document.getElementById('importProgramSelect').value;
+        const fileInput = document.getElementById('importFile');
+        if (!programId) {
+            alert('Выберите программу');
+            return;
+        }
+        if (!fileInput.files.length) {
+            alert('Выберите CSV-файл');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('program_id', programId);
+        formData.append('file', fileInput.files[0]);
+
+        const btn = document.getElementById('importBtn');
+        btn.disabled = true;
+        btn.textContent = 'Импорт...';
+        try {
+            const resp = await fetch('/api/import_dishes', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.success) {
+                alert(`Импорт завершён:\nДобавлено блюд: ${data.inserted}\nОшибок: ${data.errors.length}\n${data.errors.slice(0,5).join('\n')}`);
+                // Обновляем текущий список блюд, если выбранная программа совпадает с импортированной
+                const currentProgram = document.getElementById('dishProgramFilter').value;
+                if (currentProgram == programId || currentProgram === '') {
+                    loadAllDishes();
+                }
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        } catch(e) {
+            alert('Ошибка сети: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '⬆️ Импорт (заменит всё меню)';
+            fileInput.value = '';
+        }
+    }
+
+    // ---------- Инициализация и обработчики событий ----------
+    document.getElementById('addCategoryBtn').onclick = () => { editingCatId=null; document.getElementById('catName').value=''; document.getElementById('categoryModal').style.display='flex'; };
+    document.getElementById('saveCategoryBtn').onclick = saveCategory;
+    document.getElementById('addProductBtn').onclick = () => { editingProdId=null; document.getElementById('productModal').style.display='flex'; };
+    document.getElementById('saveProductBtn').onclick = saveProduct;
+    document.getElementById('addProgramDishBtn').onclick = () => openDishModal(null, {});
+    document.getElementById('saveProgramDishBtn').onclick = saveProgramDish;
+    document.getElementById('clearDishSearchBtn').onclick = () => { document.getElementById('dishSearchInput').value=''; filterDishes(); };
+    document.getElementById('dishSearchInput').addEventListener('input', filterDishes);
+    document.getElementById('dishProgramFilter').addEventListener('change', () => loadAllDishes());
+    document.getElementById('dishMealTypeFilter').addEventListener('change', () => filterDishes());
+    document.getElementById('ingredientSearch').addEventListener('input', renderIngredientsTree);
+    document.getElementById('clearIngSearch').onclick = () => { document.getElementById('ingredientSearch').value=''; renderIngredientsTree(); };
+    document.getElementById('saveCompositionBtn').onclick = saveComposition;
+    document.getElementById('deleteCompositionBtn').onclick = deleteComposition;
+    document.getElementById('importBtn').onclick = importDishes;
+    document.querySelectorAll('.cancel-modal').forEach(btn => btn.onclick = function() { this.closest('.modal').style.display='none'; });
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+            document.getElementById(`${btn.dataset.tab}Panel`).classList.add('active');
+            if(btn.dataset.tab === 'categories') loadCategories();
+            else if(btn.dataset.tab === 'products') loadProducts();
+            else if(btn.dataset.tab === 'dishes') { 
+                loadPrograms().then(() => {
+                    loadMealTypes().then(() => {
+                        loadAllDishes();
+                    });
+                });
+            }
+        };
+    });
+
+    // Загрузка начальных данных
+    loadCategories();
+    loadProducts();
+    // Для вкладки "Блюда" загрузим программы и типы приёмов, но не переключаем вкладку
+    loadPrograms();
+    loadMealTypes();
+    loadAllDishes();
+</script>
+</body>
+</html>

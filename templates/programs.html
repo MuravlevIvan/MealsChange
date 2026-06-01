@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Редактор программ</title>
+    <style>
+        * { box-sizing: border-box; font-family: system-ui, 'Segoe UI', Roboto, sans-serif; }
+        body { background: #f5f7fa; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .two-columns { display: grid; grid-template-columns: 1fr 1.5fr; gap: 24px; align-items: start; }
+        @media (max-width: 768px) { .two-columns { grid-template-columns: 1fr; gap: 20px; } }
+        .card { background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 0; }
+        .left-col .card { margin-bottom: 24px; }
+        h1 { margin: 0 0 24px 0; text-align: center; color: #1e2a3a; }
+        h2 { margin: 0 0 16px 0; font-size: 1.4rem; color: #1e2a3a; }
+        .program-list {
+            max-height: calc(100vh - 260px);
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 6px;
+            background: #f8fafc;
+        }
+        .program-item {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .program-item.selected { background: #d9e8f2; font-weight: bold; }
+        .program-name { font-weight: 500; display: flex; align-items: center; gap: 10px; }
+        .program-actions { display: flex; gap: 6px; }
+        .edit-program-icon, .delete-program-icon { background: none; border: none; font-size: 1.1rem; padding: 0 4px; cursor: pointer; }
+        .edit-program-icon { color: #2c7da0; }
+        .delete-program-icon { color: #dc2626; }
+        .days-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            margin: 15px 0;
+        }
+        .day-btn {
+            background-color: #e2e8f0;
+            color: #1e2a3a;
+            padding: 8px 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .day-btn:hover { background-color: #cbd5e1; transform: translateY(-2px); }
+        .day-btn.active { background-color: #2c7da0; color: white; box-shadow: 0 2px 8px rgba(44,125,160,0.3); }
+        @media (max-width: 640px) { .days-grid { grid-template-columns: repeat(4, 1fr); } }
+        .menu-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .menu-table th, .menu-table td { border: 1px solid #cbd5e1; padding: 8px 12px; vertical-align: top; text-align: left; }
+        .menu-table th { background-color: #e9f0f5; font-weight: bold; }
+        .add-btn { background: #10b981; margin-bottom: 15px; margin-right: 10px; }
+        .add-from-db-btn { background: #8b5cf6; margin-bottom: 15px; margin-right: 10px; }
+        .create-program-btn { background: #8b5cf6; margin-bottom: 15px; }
+        .edit-btn, .delete-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; }
+        .edit-btn { color: #3b82f6; }
+        .delete-btn { color: #ef4444; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background: white; border-radius: 20px; padding: 24px; width: 90%; max-width: 900px; max-height: 85vh; overflow-y: auto; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 5px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; }
+        .modal-buttons { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+        .cancel-btn { background: #e2e8f0; color: #1e2a3a; }
+        .filter-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
+        .meal-item { padding: 8px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .meal-item:hover { background-color: #f1f5f9; }
+        .flex-buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .nutrient-summary {
+            margin-top: 16px;
+            padding: 12px;
+            background: #e9f0f5;
+            border-radius: 8px;
+            font-weight: bold;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>⚙️ Редактор программ (21 день)</h1>
+    <div class="two-columns">
+        <div class="left-col">
+            <div class="card">
+                <h2>📌 Список программ</h2>
+                <div class="flex-buttons">
+                    <button id="createProgramBtn" class="create-program-btn">➕ Создать программу</button>
+                </div>
+                <div id="programList" class="program-list"></div>
+            </div>
+        </div>
+        <div class="right-col">
+            <div class="card">
+                <h2>🍽️ Меню программы</h2>
+                <div class="days-grid" id="daysGrid"></div>
+                <div class="flex-buttons">
+                    <button id="addDishBtn" class="add-btn">➕ Добавить блюдо (ручной ввод)</button>
+                    <button id="addFromDbBtn" class="add-from-db-btn">📚 Добавить из базы</button>
+                </div>
+                <div id="menuTableContainer"></div>
+            </div>
+        </div>
+    </div>
+    <div style="text-align: center;">
+        <a href="/" class="back-link">← Вернуться на главную</a>
+    </div>
+</div>
+
+<!-- Модалки (как ранее) -->
+<div id="createProgramModal" class="modal"><div class="modal-content"><h3>➕ Создать новую программу</h3><div class="form-group"><label>Название программы (например, "1400 ккал")</label><input type="text" id="newProgramName"></div><div class="form-group"><label>Калорийность (число, >=500)</label><input type="number" id="newProgramCalories" step="50" min="500" value="1400"></div><div class="modal-buttons"><button id="closeCreateProgramModalBtn" class="cancel-btn">Отмена</button><button id="confirmCreateProgramBtn">Создать</button></div></div></div>
+<div id="editProgramModal" class="modal"><div class="modal-content"><h3>✏️ Редактировать программу</h3><input type="hidden" id="editProgramId"><div class="form-group"><label>Новое название</label><input type="text" id="editProgramName"></div><div class="modal-buttons"><button id="closeEditProgramModalBtn" class="cancel-btn">Отмена</button><button id="saveProgramBtn">Сохранить</button></div></div></div>
+<div id="dishModal" class="modal"><div class="modal-content"><h3 id="modalTitle">Добавить блюдо</h3><input type="hidden" id="editDishId"><div class="form-group"><label>Тип приёма</label><select id="mealTypeSelect"></select></div><div class="form-group"><label>Название блюда</label><input type="text" id="dishName" placeholder="Например: Овсяная каша"></div><div class="form-group"><label>Вес порции (например, 150г)</label><input type="text" id="dishWeight" placeholder="150г"></div><div class="form-group"><label>Калории (ккал) на порцию</label><input type="number" id="dishKkal" step="1"></div><div class="form-group"><label>Белки (г) на порцию</label><input type="number" id="dishProtein" step="0.1"></div><div class="form-group"><label>Жиры (г) на порцию</label><input type="number" id="dishFat" step="0.1"></div><div class="form-group"><label>Углеводы (г) на порцию</label><input type="number" id="dishCarbs" step="0.1"></div><div class="modal-buttons"><button id="closeDishModalBtn" class="cancel-btn">Отмена</button><button id="saveDishBtn">Сохранить</button></div></div></div>
+<div id="selectDishModal" class="modal"><div class="modal-content" style="max-width: 800px;"><h3>📚 Выберите блюдо из базы</h3><div class="filter-row"><label>Тип приёма:</label><select id="selectDishMealType"></select><input type="text" id="selectDishSearch" placeholder="🔍 Поиск..." style="flex:1;"></div><div id="availableDishesList" style="max-height: 400px; overflow-y: auto;"></div><div class="modal-buttons"><button id="closeSelectDishModalBtn" class="cancel-btn">Отмена</button></div></div></div>
+
+<script>
+    let programs = [];
+    let currentProgram = null;
+    let currentDay = 1;
+    let mealTypes = [];
+    let menuData = [];
+    let totals = { kkal: 0, protein: 0, fat: 0, carbs: 0 };
+
+    // Загрузка списка программ
+    async function loadProgramsList() {
+        const resp = await fetch('/api/program_types');
+        programs = await resp.json();
+        if (programs.length > 0 && (currentProgram === null || !programs.find(p => p.id === currentProgram))) {
+            currentProgram = programs[0].id;
+        }
+        renderProgramList();
+        if (currentProgram) {
+            renderDayButtons();
+            loadMenu(currentProgram, currentDay);
+        }
+    }
+
+    async function loadMealTypes() {
+        const resp = await fetch('/api/program_meal_types');
+        mealTypes = await resp.json();
+        const select = document.getElementById('mealTypeSelect');
+        const selectDb = document.getElementById('selectDishMealType');
+        select.innerHTML = '';
+        selectDb.innerHTML = '';
+        mealTypes.forEach(mt => {
+            select.appendChild(new Option(mt.name, mt.id));
+            selectDb.appendChild(new Option(mt.name, mt.id));
+        });
+    }
+
+    // Загрузка меню дня с историей
+    async function loadMenu(program, day) {
+        if (!program) return;
+        const resp = await fetch(`/api/program_menu_with_history/${program}/${day}`);
+        if (!resp.ok) {
+            document.getElementById('menuTableContainer').innerHTML = '<div class="error">Ошибка загрузки</div>';
+            return;
+        }
+        const data = await resp.json();
+        menuData = data.dishes;
+        totals = data.totals;
+        renderMenuTable();
+    }
+
+    function renderMenuTable() {
+        const container = document.getElementById('menuTableContainer');
+        if (!menuData.length) {
+            container.innerHTML = '<p>Нет блюд на этот день. Добавьте первое блюдо.</p>';
+            return;
+        }
+        let html = `<table class="menu-table">
+            <thead>
+                <tr><th>Тип приёма</th><th>Блюдо</th><th>Вес</th><th>Ккал</th><th>Белки (г)</th><th>Жиры (г)</th><th>Углеводы (г)</th><th>Повтор</th><th></th></tr>
+            </thead>
+            <tbody>`;
+        for (const dish of menuData) {
+            html += `<tr>
+                <td>${escapeHtml(dish.meal_type_name)}</span></td>
+                <td>${escapeHtml(dish.name)}</span></td>
+                <td>${escapeHtml(dish.weight)}</span></td>
+                <td>${Math.round(dish.kkal)}</span></td>
+                <td>${dish.protein.toFixed(1)}</span></td>
+                <td>${dish.fat.toFixed(1)}</span></td>
+                <td>${dish.carbs.toFixed(1)}</span></td>
+                <td>${escapeHtml(dish.days_ago)}</span></td>
+                <td>
+                    <button class="edit-btn" data-id="${dish.id}" data-name="${escapeHtml(dish.name)}" data-weight="${escapeHtml(dish.weight)}" data-kkal="${dish.kkal}" data-protein="${dish.protein}" data-fat="${dish.fat}" data-carbs="${dish.carbs}" data-meal-type="${dish.meal_type_id}">✏️</button>
+                    <button class="delete-btn" data-id="${dish.id}">🗑️</button>
+                </span>
+            </tr>`;
+        }
+        html += `</tbody></table>`;
+        html += `<div class="nutrient-summary">
+                    <span>🔥 Калории: ${Math.round(totals.kkal)} ккал</span>
+                    <span>🥩 Белки: ${totals.protein.toFixed(1)} г</span>
+                    <span>🧈 Жиры: ${totals.fat.toFixed(1)} г</span>
+                    <span>🍚 Углеводы: ${totals.carbs.toFixed(1)} г</span>
+                </div>`;
+        container.innerHTML = html;
+        attachDishButtons();
+    }
+
+    function attachDishButtons() {
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.getElementById('modalTitle').innerText = 'Редактировать блюдо';
+                document.getElementById('editDishId').value = btn.dataset.id;
+                document.getElementById('mealTypeSelect').value = btn.dataset.mealType;
+                document.getElementById('dishName').value = btn.dataset.name;
+                document.getElementById('dishWeight').value = btn.dataset.weight;
+                document.getElementById('dishKkal').value = btn.dataset.kkal;
+                document.getElementById('dishProtein').value = btn.dataset.protein;
+                document.getElementById('dishFat').value = btn.dataset.fat;
+                document.getElementById('dishCarbs').value = btn.dataset.carbs;
+                document.getElementById('dishModal').style.display = 'flex';
+            };
+        });
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.onclick = async () => {
+                if (!confirm('Удалить блюдо?')) return;
+                const id = btn.dataset.id;
+                const resp = await fetch(`/api/program_menu/${id}`, { method: 'DELETE' });
+                if (resp.ok) {
+                    loadMenu(currentProgram, currentDay);
+                } else {
+                    alert('Ошибка удаления');
+                }
+            };
+        });
+    }
+
+    async function saveDish() {
+        const id = document.getElementById('editDishId').value;
+        const payload = {
+            program_id: currentProgram,
+            day: currentDay,
+            meal_type_id: parseInt(document.getElementById('mealTypeSelect').value),
+            name: document.getElementById('dishName').value.trim(),
+            weight: document.getElementById('dishWeight').value.trim(),
+            kkal: parseFloat(document.getElementById('dishKkal').value),
+            protein: parseFloat(document.getElementById('dishProtein').value),
+            fat: parseFloat(document.getElementById('dishFat').value),
+            carbs: parseFloat(document.getElementById('dishCarbs').value)
+        };
+        if (!payload.name || !payload.weight || isNaN(payload.kkal)) {
+            alert('Заполните все поля корректно');
+            return;
+        }
+        let url = '/api/program_menu';
+        let method = 'POST';
+        if (id) {
+            url = `/api/program_menu/${id}`;
+            method = 'PUT';
+        }
+        const resp = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            document.getElementById('dishModal').style.display = 'none';
+            loadMenu(currentProgram, currentDay);
+        } else {
+            const err = await resp.json();
+            alert('Ошибка: ' + err.error);
+        }
+    }
+
+    // ---------- Выбор блюда из базы ----------
+    let availableDishes = [];
+
+    async function loadAvailableDishes() {
+        const mealTypeId = document.getElementById('selectDishMealType').value;
+        if (!mealTypeId) return;
+        const resp = await fetch(`/api/program_available_dishes/${currentProgram}/${mealTypeId}?current_day=${currentDay}`);
+        if (!resp.ok) {
+            alert('Ошибка загрузки списка блюд');
+            return;
+        }
+        availableDishes = await resp.json();
+        filterAvailableDishes();
+    }
+
+    function filterAvailableDishes() {
+        const search = document.getElementById('selectDishSearch').value.toLowerCase();
+        let filtered = availableDishes.filter(d => d.name.toLowerCase().includes(search));
+        renderAvailableDishes(filtered);
+    }
+
+    function renderAvailableDishes(dishes) {
+        const container = document.getElementById('availableDishesList');
+        container.innerHTML = '';
+        for (const dish of dishes) {
+            let daysAgoText = '';
+            if (dish.days_ago === 0) daysAgoText = ' (сегодня)';
+            else if (dish.days_ago === 1) daysAgoText = ' (вчера)';
+            else if (dish.days_ago > 1) daysAgoText = ` (${dish.days_ago} дн. назад)`;
+            else if (dish.days_ago === null) daysAgoText = ' (впервые)';
+            
+            const div = document.createElement('div');
+            div.className = 'meal-item';
+            div.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(dish.name)}</strong> — ${dish.weight}, ${Math.round(dish.kkal)} ккал,
+                    Б:${dish.protein.toFixed(1)} Ж:${dish.fat.toFixed(1)} У:${dish.carbs.toFixed(1)}${daysAgoText}
+                </div>
+                <button class="select-dish-btn" data-name="${escapeHtml(dish.name)}" data-weight="${dish.weight}" data-kkal="${dish.kkal}" data-protein="${dish.protein}" data-fat="${dish.fat}" data-carbs="${dish.carbs}" data-meal-type-id="${dish.meal_type_id}">Выбрать</button>
+            `;
+            container.appendChild(div);
+        }
+        document.querySelectorAll('.select-dish-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const payload = {
+                    program_id: currentProgram,
+                    day: currentDay,
+                    meal_type_id: parseInt(btn.dataset.mealTypeId),
+                    name: btn.dataset.name,
+                    weight: btn.dataset.weight,
+                    kkal: parseFloat(btn.dataset.kkal),
+                    protein: parseFloat(btn.dataset.protein),
+                    fat: parseFloat(btn.dataset.fat),
+                    carbs: parseFloat(btn.dataset.carbs)
+                };
+                const resp = await fetch('/api/program_menu', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                    document.getElementById('selectDishModal').style.display = 'none';
+                    loadMenu(currentProgram, currentDay);
+                } else {
+                    const err = await resp.json();
+                    alert('Ошибка добавления: ' + err.error);
+                }
+            };
+        });
+    }
+
+    // ---------- Управление программами ----------
+    function renderProgramList() {
+        const container = document.getElementById('programList');
+        container.innerHTML = '';
+        programs.forEach(prog => {
+            const div = document.createElement('div');
+            div.className = 'program-item';
+            if (prog.id === currentProgram) div.classList.add('selected');
+            div.innerHTML = `
+                <div class="program-name"><span>${escapeHtml(prog.name)}</span></div>
+                <div class="program-actions">
+                    <button class="edit-program-icon" data-id="${prog.id}" data-name="${escapeHtml(prog.name)}">✏️</button>
+                    <button class="delete-program-icon" data-id="${prog.id}" data-name="${escapeHtml(prog.name)}">🗑️</button>
+                </div>
+            `;
+            div.onclick = (e) => {
+                if (e.target.classList.contains('edit-program-icon') || e.target.classList.contains('delete-program-icon')) return;
+                currentProgram = prog.id;
+                currentDay = 1;
+                renderProgramList();
+                renderDayButtons();
+                loadMenu(currentProgram, currentDay);
+            };
+            container.appendChild(div);
+        });
+        document.querySelectorAll('.edit-program-icon').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                const name = btn.dataset.name;
+                document.getElementById('editProgramId').value = id;
+                document.getElementById('editProgramName').value = name;
+                document.getElementById('editProgramModal').style.display = 'flex';
+            };
+        });
+        document.querySelectorAll('.delete-program-icon').forEach(btn => {
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                const name = btn.dataset.name;
+                if (confirm(`Удалить программу "${name}"? Все блюда этой программы будут удалены.`)) {
+                    const resp = await fetch(`/api/delete_program/${id}`, { method: 'DELETE' });
+                    if (resp.ok) {
+                        await loadProgramsList();
+                        if (currentProgram === id) {
+                            currentProgram = programs.length ? programs[0].id : null;
+                            renderProgramList();
+                            if (currentProgram) {
+                                renderDayButtons();
+                                loadMenu(currentProgram, currentDay);
+                            } else {
+                                document.getElementById('daysGrid').innerHTML = '';
+                                document.getElementById('menuTableContainer').innerHTML = '<p>Нет доступных программ. Создайте новую.</p>';
+                            }
+                        } else {
+                            renderProgramList();
+                        }
+                        alert('Программа удалена');
+                    } else {
+                        const err = await resp.json();
+                        alert('Ошибка: ' + err.error);
+                    }
+                }
+            };
+        });
+    }
+
+    async function createNewProgram() {
+        const name = document.getElementById('newProgramName').value.trim();
+        const calories = parseInt(document.getElementById('newProgramCalories').value);
+        if (!name) { alert('Введите название программы'); return; }
+        if (isNaN(calories) || calories < 500) { alert('Калорийность должна быть числом не менее 500'); return; }
+        const resp = await fetch('/api/create_program', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, calories })
+        });
+        if (resp.ok) {
+            await loadProgramsList();
+            const newProg = await resp.json();
+            currentProgram = newProg.id;
+            renderProgramList();
+            renderDayButtons();
+            loadMenu(currentProgram, currentDay);
+            document.getElementById('createProgramModal').style.display = 'none';
+            alert('Программа создана');
+        } else {
+            const err = await resp.json();
+            alert('Ошибка: ' + err.error);
+        }
+    }
+
+    async function saveProgram() {
+        const id = parseInt(document.getElementById('editProgramId').value);
+        const newName = document.getElementById('editProgramName').value.trim();
+        if (!newName) { alert('Название не может быть пустым'); return; }
+        const resp = await fetch(`/api/rename_program/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+        if (resp.ok) {
+            await loadProgramsList();
+            renderProgramList();
+            if (currentProgram === id) loadMenu(currentProgram, currentDay);
+            document.getElementById('editProgramModal').style.display = 'none';
+            alert('Название программы обновлено');
+        } else {
+            const err = await resp.json();
+            alert('Ошибка: ' + err.error);
+        }
+    }
+
+    function renderDayButtons() {
+        const container = document.getElementById('daysGrid');
+        container.innerHTML = '';
+        if (!currentProgram) return;
+        for (let i = 1; i <= 21; i++) {
+            const btn = document.createElement('div');
+            btn.className = 'day-btn';
+            if (i === currentDay) btn.classList.add('active');
+            btn.textContent = i;
+            btn.onclick = () => {
+                currentDay = i;
+                document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                loadMenu(currentProgram, currentDay);
+            };
+            container.appendChild(btn);
+        }
+    }
+
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])); }
+
+    // Инициализация обработчиков
+    document.getElementById('createProgramBtn').onclick = () => {
+        document.getElementById('newProgramName').value = '';
+        document.getElementById('newProgramCalories').value = 1400;
+        document.getElementById('createProgramModal').style.display = 'flex';
+    };
+    document.getElementById('closeCreateProgramModalBtn').onclick = () => document.getElementById('createProgramModal').style.display = 'none';
+    document.getElementById('confirmCreateProgramBtn').onclick = createNewProgram;
+    document.getElementById('closeEditProgramModalBtn').onclick = () => document.getElementById('editProgramModal').style.display = 'none';
+    document.getElementById('saveProgramBtn').onclick = saveProgram;
+    document.getElementById('addDishBtn').onclick = () => {
+        if (!currentProgram) { alert('Сначала выберите программу'); return; }
+        document.getElementById('modalTitle').innerText = 'Добавить блюдо';
+        document.getElementById('editDishId').value = '';
+        document.getElementById('mealTypeSelect').value = mealTypes[0]?.id || '';
+        document.getElementById('dishName').value = '';
+        document.getElementById('dishWeight').value = '';
+        document.getElementById('dishKkal').value = '';
+        document.getElementById('dishProtein').value = '';
+        document.getElementById('dishFat').value = '';
+        document.getElementById('dishCarbs').value = '';
+        document.getElementById('dishModal').style.display = 'flex';
+    };
+    document.getElementById('closeDishModalBtn').onclick = () => document.getElementById('dishModal').style.display = 'none';
+    document.getElementById('saveDishBtn').onclick = saveDish;
+    document.getElementById('addFromDbBtn').onclick = () => {
+        if (!currentProgram) { alert('Сначала выберите программу'); return; }
+        document.getElementById('selectDishMealType').value = mealTypes[0]?.id || '';
+        document.getElementById('selectDishSearch').value = '';
+        document.getElementById('selectDishModal').style.display = 'flex';
+        loadAvailableDishes();
+    };
+    document.getElementById('closeSelectDishModalBtn').onclick = () => document.getElementById('selectDishModal').style.display = 'none';
+    document.getElementById('selectDishMealType').addEventListener('change', loadAvailableDishes);
+    document.getElementById('selectDishSearch').addEventListener('input', filterAvailableDishes);
+
+    window.onclick = (e) => {
+        if (e.target === document.getElementById('dishModal')) document.getElementById('dishModal').style.display = 'none';
+        if (e.target === document.getElementById('createProgramModal')) document.getElementById('createProgramModal').style.display = 'none';
+        if (e.target === document.getElementById('editProgramModal')) document.getElementById('editProgramModal').style.display = 'none';
+        if (e.target === document.getElementById('selectDishModal')) document.getElementById('selectDishModal').style.display = 'none';
+    };
+
+    loadMealTypes().then(() => loadProgramsList());
+</script>
+</body>
+</html>
